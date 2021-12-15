@@ -1,4 +1,6 @@
+#include <Servo.h>
 #include "Matrix.h"
+#include "Ultrasonic.h"
 #define MOTOR_LD 4
 #define MOTOR_RD 2
 #define MOTOR_LS 5
@@ -8,39 +10,104 @@
 #define LS_C 7
 #define LS_R 8
 
+#define COLLISION_DISTANCE 10
+
 Matrix matrix;
+Ultrasonic ultrasonic(12, 13);
+Servo servo;
 
 enum DIRECTION {
-    LEFT,
-    RIGHT,
-    CENTER
-  };
+  LEFT,
+  RIGHT,
+  CENTER
+};
+
+void resumeServo() {
+  servo.attach(10);
+  delay(30);
+}
+
+void stopServo() {
+  delay(100);
+  servo.detach();
+}
 
 void setup(){
   Serial.begin( 9600 );
   pinMode( MOTOR_LD, OUTPUT );
   pinMode( MOTOR_RD, OUTPUT );
+  pinMode( MOTOR_LS, OUTPUT );
+  pinMode( MOTOR_RS, OUTPUT );
 
   pinMode( LS_L, INPUT );
   pinMode( LS_C, INPUT );
   pinMode( LS_R, INPUT );
   matrix.setup();
-  matrix.set_mode(2);
+  matrix.set_mode(0);
+
+  //reset_servo();
 }
 
 int16_t d_speed = 100;
 float l_fac = 1;
 float r_fac = 1;
 
-bool brakes_en = false;
+int offCounter = 0;
 
+bool brakes_en = false;
+bool obstacleAvoidance = false;
 enum DIRECTION lastTurn = CENTER;
 
 void loop(){
-  matrix.update();
+  digitalWrite( MOTOR_RD, LOW );
+  analogWrite( MOTOR_RS, 100 );
   return;
+  matrix.update();
+  if (!obstacleAvoidance) {
+    drive(100, 100);
+    check_for_obstacle();
+    //follow_path();
+  } else
+    avoidObstacle();
+}
 
+void avoidObstacle(){
+  return;
+  resumeServo();
+  for (int i = 1000; i < 2000; i++) {
+    servo.write(0);
+    delay(5);
+  } 
+    
+  for (int i = 2000; i > 1000; i--) {
+    servo.write(180);
+    delay(5);
+  }
+  stopServo();
+}
+void check_for_obstacle(){
+  if (ultrasonic.ping() <= COLLISION_DISTANCE)
+    obstacleAvoidance = true;
+  if (!obstacleAvoidance)
+    return;
+  if (!brakes_en){
+    brakes_en = true;
+    drive(-100,-100);
+    delay(100);
+    drive(0,0);
+    delay(200);
+  }
+}
+void reset_servo(){
+  resumeServo();
+  servo.write(90);
+  stopServo();
+}
+
+void follow_path() {
+  // firstly check for failsafe such as outside the map and at stop point
   if( !all_on() && !all_off() ) {
+    offCounter = 0;
     // for tuning left and right
     if (ls_l())
       l_fac = (!ls_r() ?  0   : 0);
@@ -59,40 +126,40 @@ void loop(){
       lastTurn = RIGHT;
     else
       lastTurn = CENTER;
-      
 
-  Serial.print(l_fac);
-  Serial.print(" ");
-  Serial.println(r_fac);
-      
+    // make use of calculated left and right factors and drive
     drive(d_speed*l_fac, d_speed*r_fac);
-    
-  }else 
-    drive(0,0);
-
-  while (all_off()){
-    if (!brakes_en){
-      brakes_en = true;
-      drive(-100,-100);
-      delay(100);
-      drive(0,0);
-      delay(200);
+    brakes_en = false;
+  }else {
+    if (all_off()){
+      Serial.println("off");
+      offCounter++;
+      if (offCounter >= 100) {
+        drive(0,0);
+        Serial.println("offcnt");
+      } else {
+        if (!brakes_en){
+          brakes_en = true;
+          drive(-100,-100);
+          delay(100);
+          drive(0,0);
+          delay(200);
+        }
+        if (lastTurn == LEFT)
+          drive(0, d_speed*3);
+        if (lastTurn == RIGHT)
+          drive(d_speed*3, 0);
+      }
+    } else if (all_on()) {
+      if (!brakes_en){
+        brakes_en = true;
+        drive(-100,-100);
+        delay(100);
+        drive(0,0);
+        delay(200);
+      }
     }
-    if (lastTurn == LEFT)
-      drive(0, d_speed*3);
-    if (lastTurn == RIGHT)
-      drive(d_speed*3, 0);
   }
-  while(all_on()) {
-    if (!brakes_en){
-      brakes_en = true;
-      drive(-100,-100);
-      delay(100);
-      drive(0,0);
-      delay(200);
-    }
-  }
-  brakes_en = false;
 }
 
 bool ls_l(){
@@ -133,6 +200,7 @@ void drive(int L, int R) {
     L = 255;
   if (R < -255 || R > 255)
     R = 255;
+
   analogWrite( MOTOR_LS, L & 255 );
   analogWrite( MOTOR_RS, R & 255 );
 }
