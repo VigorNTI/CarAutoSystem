@@ -16,6 +16,7 @@ void loop() {
 // function that executes whenever data is received from master
 // this function is registered as an event in setup()
 void receiveEvent(int howMany) {
-  while (0 < Wire.available())
-    servo.write((char) Wire.read());
+  while (0 < Wire.available()) {
+    servo.write((uint8_t) Wire.read());
+  }
 }
