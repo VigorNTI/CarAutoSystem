@@ -1,6 +1,10 @@
 //data display from right to left, from bottom to top, HIGH level display. 
-#define IIC_SCL  A5
-#define IIC_SDA  A4
+#ifndef IIC_SCL
+  #define IIC_SCL  A5
+#endif
+#ifndef IIC_SDA
+  #define IIC_SDA  A4
+#endif
 
 class Matrix {
 public:
