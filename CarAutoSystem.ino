@@ -154,10 +154,7 @@ void avoidObstacle(){
     }
     // brake
     blindBrake();
-  } else if (*(sectors + 0) >  SECTOR_THRES_END && 
-             *(sectors + 2) >  SECTOR_THRES_END &&
-             *(sectors + 1) >  SECTOR_THRES_END) 
-  {
+  } else if (*(sectors + 0) >  SECTOR_THRES_END) {
     // turn half left
     drive(0, 200);
     for (int i = 0; i < 200; i++) {
