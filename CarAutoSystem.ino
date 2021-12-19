@@ -1,4 +1,4 @@
-#include <Servo.h>
+#include <Wire.h>
 #include "Matrix.h"
 #include "Ultrasonic.h"
 #define MOTOR_LD 4
@@ -14,7 +14,6 @@
 
 Matrix matrix;
 Ultrasonic ultrasonic(12, 13);
-Servo servo;
 
 enum DIRECTION {
   LEFT,
@@ -22,18 +21,9 @@ enum DIRECTION {
   CENTER
 };
 
-void resumeServo() {
-  servo.attach(10);
-  delay(30);
-}
-
-void stopServo() {
-  delay(100);
-  servo.detach();
-}
-
 void setup(){
   Serial.begin( 9600 );
+  Wire.begin();
   pinMode( MOTOR_LD, OUTPUT );
   pinMode( MOTOR_RD, OUTPUT );
   pinMode( MOTOR_LS, OUTPUT );
@@ -44,8 +34,6 @@ void setup(){
   pinMode( LS_R, INPUT );
   matrix.setup();
   matrix.set_mode(0);
-
-  //reset_servo();
 }
 
 int16_t d_speed = 100;
@@ -59,10 +47,15 @@ bool obstacleAvoidance = false;
 enum DIRECTION lastTurn = CENTER;
 
 void loop(){
-  digitalWrite( MOTOR_RD, LOW );
-  analogWrite( MOTOR_RS, 100 );
+  //matrix.update();
+  for (int i = 0; i < 180; i += 1) {
+    Wire.beginTransmission(13);
+    Wire.write(i);
+    Wire.endTransmission();
+    delay(10);
+  }
+  
   return;
-  matrix.update();
   if (!obstacleAvoidance) {
     drive(100, 100);
     check_for_obstacle();
@@ -72,18 +65,7 @@ void loop(){
 }
 
 void avoidObstacle(){
-  return;
-  resumeServo();
-  for (int i = 1000; i < 2000; i++) {
-    servo.write(0);
-    delay(5);
-  } 
-    
-  for (int i = 2000; i > 1000; i--) {
-    servo.write(180);
-    delay(5);
-  }
-  stopServo();
+ Serial.println("avvoiding");
 }
 void check_for_obstacle(){
   if (ultrasonic.ping() <= COLLISION_DISTANCE)
@@ -98,12 +80,6 @@ void check_for_obstacle(){
     delay(200);
   }
 }
-void reset_servo(){
-  resumeServo();
-  servo.write(90);
-  stopServo();
-}
-
 void follow_path() {
   // firstly check for failsafe such as outside the map and at stop point
   if( !all_on() && !all_off() ) {
