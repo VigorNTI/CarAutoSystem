@@ -15,7 +15,7 @@ public:
     Serial.println("with Arduino UNO R3");
   }
 
-  int ping() {
+  unsigned int ping() {
     // Clears the trigPin condition
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
@@ -28,9 +28,10 @@ public:
     // Calculating the distance
     distance = duration * 0.034 / 2; // Speed of sound wave divided by 2 since we now measure back and forth
     // Displays the distance on the Serial Monitor
+    if (distance > 100)
+      distance = 100;
     return distance;
   }
-
 private:
   int trigPin;
   int echoPin;

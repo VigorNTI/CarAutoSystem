@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include <EEPROM.h>
 #include "Matrix.h"
 #include "Ultrasonic.h"
 #define MOTOR_LD 4
@@ -10,7 +11,10 @@
 #define LS_C 7
 #define LS_R 8
 
-#define COLLISION_DISTANCE 10
+#define COLLISION_DISTANCE  15
+#define SECTOR_THRES_START  10
+#define SECTOR_THRES_END    25
+#define SECTORS_NUM         5
 
 Matrix matrix;
 Ultrasonic ultrasonic(12, 13);
@@ -34,6 +38,10 @@ void setup(){
   pinMode( LS_R, INPUT );
   matrix.setup();
   matrix.set_mode(0);
+
+  delay(1000);
+  writeServo(90);
+  delay(200);
 }
 
 int16_t d_speed = 100;
@@ -44,41 +52,163 @@ int offCounter = 0;
 
 bool brakes_en = false;
 bool obstacleAvoidance = false;
+bool aligningLine = false;
 enum DIRECTION lastTurn = CENTER;
 
 void loop(){
-  //matrix.update();
-  for (int i = 0; i < 180; i += 1) {
-    Wire.beginTransmission(13);
-    Wire.write(i);
-    Wire.endTransmission();
-    delay(10);
+  if (Serial.available()) { // failsafe, send something via serial com and this locks the car
+    String buf = "";
+    while (Serial.available()) {
+      buf += (char)Serial.read();
+    }
+    if (strcmp(buf.c_str(), "stop") == 0)
+      for (;;);
   }
-  
-  return;
+  //matrix.update();
   if (!obstacleAvoidance) {
-    drive(100, 100);
+    writeServo(90);
     check_for_obstacle();
-    //follow_path();
-  } else
+    if (!obstacleAvoidance)
+      follow_path();
+  } else if (!aligningLine)
     avoidObstacle();
+  else {
+    // back up if any of the lights are on the line
+    if (ls_l() || ls_c() || ls_r()) {
+      blindBrake();
+      goto line_found_f;
+    } else if (all_off()) { // if no lights are on the line, find the line
+      drive(100, 100); // find forward
+      for (int i = 0; i < 200; i++) {
+        if (ls_l() || ls_c() || ls_r()) {
+          blindBrake();
+          delay(100);
+          blindBrake(); // back up a little
+          goto line_found_f;
+        }
+        delay(1);
+      }
+      blindBrake();
+      // if nothing is found, we search backwards
+      drive(-100, -100);
+      for (int i = 0; i < 400; i++) {
+        if (ls_l() || ls_c() || ls_r()) {
+          blindBrakeReverse();
+          delay(100);
+          blindBrake(); // back up a little
+          goto line_found_f;
+        }
+        delay(1);
+      }
+      blindBrakeReverse();
+      return;
+    }
+ line_found_f:
+
+
+    drive(200, 200);
+    delay(200);
+    blindBrake();
+    delay(200);
+    drive(255, -150);
+    while (!((ls_c() && ls_r()) || (ls_l() && ls_c())));
+    drive(0,0);
+    aligningLine = false;
+    obstacleAvoidance = false;
+  }
 }
 
 void avoidObstacle(){
- Serial.println("avvoiding");
+  detectWall();
+
+  // Divide into sectors
+  uint8_t* sectors = sectorsStatus();
+  // Take action from sector status
+  if (*(sectors + 2) < SECTOR_THRES_START)
+    blindBrake();
+  else if ((*(sectors + 2) > SECTOR_THRES_START && *(sectors + 2) < SECTOR_THRES_END) ||
+           (*(sectors + 1) < SECTOR_THRES_START) ||
+           (*(sectors + 0) < 8)) {
+    // turn right
+    drive(200, -200);
+    delay(200);
+    // brake
+    drive(0,0);
+    delay(200);
+  } else if (*(sectors + 0) <= SECTOR_THRES_END && 
+             *(sectors + 1) >  SECTOR_THRES_START &&
+             *(sectors + 2) >  SECTOR_THRES_START) 
+  {
+    // drive forward
+    drive(200, 200);
+    for (int i = 0; i < 150; i++) {
+      if (ls_l() || ls_r()) {
+        Serial.println("I have found the line");
+        aligningLine = true;
+        blindBrake();
+        return;
+      }
+      delay(1);
+    }
+    // brake
+    blindBrake();
+  } else if (*(sectors + 0) >  SECTOR_THRES_END && 
+             *(sectors + 2) >  SECTOR_THRES_END &&
+             *(sectors + 1) >  SECTOR_THRES_END) 
+  {
+    // turn half left
+    drive(0, 200);
+    delay(200);
+    // brake
+    drive(0, -100);
+    delay(100);
+    drive(0,0);
+    delay(200);
+  }
+  
+  Serial.println("Sectors: ");
+  for (int i = 0; i < 5; i++) {
+    Serial.println(*(sectors + i));
+  }
+  Serial.println("");
+  // cleanup
+  delete[] sectors;
+  //delay(-1);
+}
+uint8_t* sectorsStatus() {
+  uint8_t* output = new uint8_t[SECTORS_NUM];
+  uint8_t range = 180/SECTORS_NUM;
+
+  for (int i = 0; i < SECTORS_NUM; i++) {
+    uint8_t minValue = 100;
+    for (int j = range*i; j < range*(i+1); j++) {
+      int a = EEPROM.read(j);
+      for (int x = 0; x < a; x++)
+      if (a < minValue)
+        minValue = a;
+    }
+    *(output + i) = minValue;
+  }
+  // well, return the status
+  return output;
+}
+void detectWall() {
+  writeServo(180);
+  delay(500);
+  int addr = 0;
+  for (int i = 180; i >= 0; i--) {
+    writeServo(i);
+    delay(10);
+    EEPROM.update(addr, (byte)ultrasonic.ping());
+    addr += 1;
+  }
 }
 void check_for_obstacle(){
   if (ultrasonic.ping() <= COLLISION_DISTANCE)
     obstacleAvoidance = true;
   if (!obstacleAvoidance)
     return;
-  if (!brakes_en){
-    brakes_en = true;
-    drive(-100,-100);
-    delay(100);
-    drive(0,0);
-    delay(200);
-  }
+  brake();
 }
 void follow_path() {
   // firstly check for failsafe such as outside the map and at stop point
@@ -108,11 +238,9 @@ void follow_path() {
     brakes_en = false;
   }else {
     if (all_off()){
-      Serial.println("off");
       offCounter++;
       if (offCounter >= 100) {
         drive(0,0);
-        Serial.println("offcnt");
       } else {
         if (!brakes_en){
           brakes_en = true;
@@ -136,6 +264,32 @@ void follow_path() {
       }
     }
   }
+}
+void blindBrake() {
+  drive(-100,-100);
+  delay(100);
+  drive(0,0);
+  delay(200);
+}
+void blindBrakeReverse() {
+  drive(100,100);
+  delay(100);
+  drive(0,0);
+  delay(200);
+}
+void brake() {
+  if (!brakes_en){
+    brakes_en = true;
+    drive(-100,-100);
+    delay(100);
+    drive(0,0);
+    delay(200);
+  }
+}
+void writeServo(int degree) {
+  Wire.beginTransmission(13);
+  Wire.write(degree);
+  Wire.endTransmission();
 }
 
 bool ls_l(){
@@ -177,8 +331,8 @@ void drive(int L, int R) {
   if (R < -255 || R > 255)
     R = 255;
 
-  analogWrite( MOTOR_LS, L & 255 );
-  analogWrite( MOTOR_RS, R & 255 );
+  analogWrite( MOTOR_LS, abs(L) );
+  analogWrite( MOTOR_RS, abs(R) );
 }
 
 void gear_mix(enum DIRECTION d){
