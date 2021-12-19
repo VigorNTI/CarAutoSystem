@@ -128,7 +128,7 @@ void avoidObstacle(){
     blindBrake();
   else if ((*(sectors + 2) > SECTOR_THRES_START && *(sectors + 2) < SECTOR_THRES_END) ||
            (*(sectors + 1) < SECTOR_THRES_START) ||
-           (*(sectors + 0) < 8)) {
+           (*(sectors + 0) < 7)) {
     // turn right
     drive(200, -200);
     delay(200);
@@ -141,10 +141,10 @@ void avoidObstacle(){
   {
     // drive forward
     drive(200, 200);
-    for (int i = 0; i < 150; i++) {
+    for (int i = 0; i < 200; i++) {
       if (ls_l() || ls_r()) {
-        Serial.println("I have found the line");
         aligningLine = true;
+        blindBrake();
         blindBrake();
         return;
       }
