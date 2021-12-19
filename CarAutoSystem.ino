@@ -119,14 +119,17 @@ void loop(){
 }
 
 void avoidObstacle(){
+  drive(0,0); // make sure it has stopped while we start detecting the wall
   detectWall();
 
   // Divide into sectors
   uint8_t* sectors = sectorsStatus();
   // Take action from sector status
-  if (*(sectors + 2) < SECTOR_THRES_START)
-    blindBrake();
-  else if ((*(sectors + 2) > SECTOR_THRES_START && *(sectors + 2) < SECTOR_THRES_END) ||
+  if (*(sectors + 2) < SECTOR_THRES_START) {
+    drive(-200, -200);
+    delay(300);
+    blindBrakeReverse();
+  } else if ((*(sectors + 2) > SECTOR_THRES_START && *(sectors + 2) < SECTOR_THRES_END) ||
            (*(sectors + 1) < SECTOR_THRES_START) ||
            (*(sectors + 0) < 7)) {
     // turn right
@@ -145,8 +148,7 @@ void avoidObstacle(){
       if (ls_l() || ls_r()) {
         aligningLine = true;
         blindBrake();
-        blindBrake();
-        return;
+        break;
       }
       delay(1);
     }
@@ -158,7 +160,13 @@ void avoidObstacle(){
   {
     // turn half left
     drive(0, 200);
-    delay(200);
+    for (int i = 0; i < 200; i++) {
+      if (ls_l() || ls_r()) {
+        aligningLine = true;
+        break;
+      }
+      delay(1);
+    }
     // brake
     drive(0, -100);
     delay(100);
