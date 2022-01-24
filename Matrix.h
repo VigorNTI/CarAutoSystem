@@ -6,6 +6,14 @@
   #define IIC_SDA  A4
 #endif
 
+/*
+
+Majority of this file is copied from another source, basically it sends iic data to the matrix module without the wire lib.
+This code is not called since it interferes with the wire lib used to communicate with the servo driver.
+Therefor, this is mainly not used.
+
+*/
+
 class Matrix {
 public:
   int mode;

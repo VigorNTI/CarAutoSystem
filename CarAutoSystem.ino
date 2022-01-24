@@ -19,12 +19,21 @@
 Matrix matrix;
 Ultrasonic ultrasonic(12, 13);
 
+/* This is an enum used as parameters to the drive function  */
 enum DIRECTION {
   LEFT,
   RIGHT,
   CENTER
 };
 
+/*
+ * Function:  setup 
+ * --------------------
+ * Setup gpios, protocols and drivers.
+ *
+ *
+ * returns: void
+ */
 void setup(){
   Serial.begin( 9600 );
   Wire.begin();
@@ -44,6 +53,8 @@ void setup(){
   delay(200);
 }
 
+
+/* Setup various variables */
 int16_t d_speed = 100;
 float l_fac = 1;
 float r_fac = 1;
@@ -55,6 +66,14 @@ bool obstacleAvoidance = false;
 bool aligningLine = false;
 enum DIRECTION lastTurn = CENTER;
 
+/*
+ * Function:  loop 
+ * --------------------
+ * Main loop function that loops all logic
+ *
+ *
+ * returns: void
+ */
 void loop(){
   if (Serial.available()) { // failsafe, send something via serial com and this locks the car
     String buf = "";
@@ -118,6 +137,14 @@ void loop(){
   }
 }
 
+/*
+ * Function:  avoidObstacle 
+ * --------------------
+ * When looping this function, the robot will proceed with it's route around an object. 
+ *
+ *
+ * returns: void
+ */
 void avoidObstacle(){
   drive(0,0); // make sure it has stopped while we start detecting the wall
   detectWall();
@@ -180,6 +207,15 @@ void avoidObstacle(){
   delete[] sectors;
   //delay(-1);
 }
+
+/*
+ * Function: sectorsStatus 
+ * --------------------
+ * This reads all ultrasonic values from memory storage and divides this into sectors which are returned 
+ *
+ *
+ * returns: uint8_t pointer to an array of sectors
+ */
 uint8_t* sectorsStatus() {
   uint8_t* output = new uint8_t[SECTORS_NUM];
   uint8_t range = 180/SECTORS_NUM;
@@ -197,6 +233,15 @@ uint8_t* sectorsStatus() {
   // well, return the status
   return output;
 }
+
+/*
+ * Function: detectWall 
+ * --------------------
+ * This sweeps the servo and captures ultrasonic points throughout the sweep, this gets loaded into memory for later use 
+ *
+ *
+ * returns: void
+ */
 void detectWall() {
   writeServo(180);
   delay(500);
@@ -208,6 +253,15 @@ void detectWall() {
     addr += 1;
   }
 }
+
+/*
+ * Function: check_for_obstacle 
+ * --------------------
+ * This function checks for an obstacle right infront of the vehicle and sets a flag if there is one
+ *
+ *
+ * returns: void
+ */
 void check_for_obstacle(){
   if (ultrasonic.ping() <= COLLISION_DISTANCE)
     obstacleAvoidance = true;
@@ -215,6 +269,15 @@ void check_for_obstacle(){
     return;
   brake();
 }
+
+/*
+ * Function: follow_path 
+ * --------------------
+ * This function loops, it controls the vehicle in a way that it follows a path underneath, if there is one
+ *
+ *
+ * returns: void
+ */
 void follow_path() {
   // firstly check for failsafe such as outside the map and at stop point
   if( !all_on() && !all_off() ) {
@@ -270,18 +333,45 @@ void follow_path() {
     }
   }
 }
+
+/*
+ * Function: blindBrake 
+ * --------------------
+ * Breaks a forward going vehicle
+ *
+ *
+ * returns: void
+ */
 void blindBrake() {
   drive(-100,-100);
   delay(100);
   drive(0,0);
   delay(200);
 }
+
+/*
+ * Function: blindBrakeReverse 
+ * --------------------
+ * Breakes a backwards going vehicle
+ *
+ *
+ * returns: void
+ */
 void blindBrakeReverse() {
   drive(100,100);
   delay(100);
   drive(0,0);
   delay(200);
 }
+
+/*
+ * Function: brake
+ * --------------------
+ * Breakes a forward going vehicle if it has not already braked
+ *
+ *
+ * returns: void
+ */
 void brake() {
   if (!brakes_en){
     brakes_en = true;
@@ -291,29 +381,92 @@ void brake() {
     delay(200);
   }
 }
+
+/*
+ * Function: writeServo
+ * --------------------
+ * This writes a set value to the iic bus for the servo controller arduino to read
+ *
+ * degree: specifies the value to be written to the iic bus for the servo controller arduino to read
+ *
+ * returns: void
+ */
 void writeServo(int degree) {
   Wire.beginTransmission(13);
   Wire.write(degree);
   Wire.endTransmission();
 }
 
+/*
+ * Function: ls_l
+ * --------------------
+ * Reads from the left light sensor 
+ *
+ *
+ * returns: the read value from the left light sensor
+ */
 bool ls_l(){
   return digitalRead( LS_L );
 }
+
+/*
+ * Function: ls_c
+ * --------------------
+ * Reads from the center light sensor 
+ *
+ *
+ * returns: the read value from the center light sensor
+ */
 bool ls_c(){
   return digitalRead( LS_C );
 }
+
+/*
+ * Function: ls_r
+ * --------------------
+ * Reads from the right light sensor 
+ *
+ *
+ * returns: the read value from the right light sensor
+ */
 bool ls_r(){
   return digitalRead( LS_R );
 }
 
+/*
+ * Function: all_on
+ * --------------------
+ * Reads from all light sensors
+ *
+ *
+ * returns: true if all sensors is on, otherwise false
+ */
 bool all_on() {
   return ls_l() && ls_c() && ls_r();
 }
+
+/*
+ * Function: all_off
+ * --------------------
+ * Reads from all light sensors
+ *
+ *
+ * returns: true if all sensors is off, otherwise false
+ */
 bool all_off() {
   return !ls_l() && !ls_c() && !ls_r();
 }
 
+/*
+ * Function: drive
+ * --------------------
+ * Turns on the specified motors with a specified speed
+ *
+ * L: speed of the left wheels
+ * R: speed of the right wheels
+ *
+ * returns: void
+ */
 void drive(int L, int R) {
   /*analogWrite(MOTOR_LS, 0);
   analogWrite(MOTOR_RS, 0);
@@ -340,17 +493,45 @@ void drive(int L, int R) {
   analogWrite( MOTOR_RS, abs(R) );
 }
 
+/*
+ * Function: gear_mix
+ * --------------------
+ * Turns on the specified motors with a specified speed
+ *
+ * d: specified which motors to set
+ *
+ * returns: void
+ */
 void gear_mix(enum DIRECTION d){
   digitalWrite( MOTOR_LD, d );Serial.print(d);
   digitalWrite( MOTOR_RD, !d );Serial.println(!d);
 }
 
+/*
+ * Function: gear_drive
+ * --------------------
+ * Sets specified motor to forward direction
+ *
+ * d: specified which motors to set
+ *
+ * returns: void
+ */
 void gear_drive(enum DIRECTION d){
   if (d == LEFT)
     digitalWrite( MOTOR_LD, LOW );
   else
     digitalWrite( MOTOR_RD, LOW );
 }
+
+/*
+ * Function: gear_reverse
+ * --------------------
+ * Sets specified motor to reverse direction
+ *
+ * d: specified which motors to set
+ *
+ * returns: void
+ */
 void gear_reverse(enum DIRECTION d){
   if (d == LEFT)
     digitalWrite( MOTOR_LD, HIGH );

@@ -1,9 +1,27 @@
+/**
+ * Implementation of the ultrasonic sensor.
+ * 
+ * Class is constructed into an object with parameters for trigger pin and echo pin.
+ * Calling ping returns a distance.
+ *
+ */
+
 class Ultrasonic {
 public:
   // defines variables
   long duration; // variable for the duration of sound wave travel
   int distance; // variable for the distance measurement
 
+/*
+ * constructor: Ultrasonic
+ * --------------------
+ * Initiates gpios for the ultrasonic sensor
+ *
+ * trigPin_in: trigger gpio pin
+ * echoPpin_in: echo gpio pin
+ *
+ * returns: ultrasonic class object
+ */
   Ultrasonic(int trigPin_in, int echoPin_in){
     this->trigPin = trigPin_in;
     this->echoPin = echoPin_in;
@@ -15,6 +33,14 @@ public:
     Serial.println("with Arduino UNO R3");
   }
 
+/*
+ * Function: ping
+ * --------------------
+ * Does the ping logic and drives the ultrasonic sensor
+ *
+ *
+ * returns: an unsigned int of the distance between sensor and object in front of it
+ */
   unsigned int ping() {
     // Clears the trigPin condition
     digitalWrite(trigPin, LOW);
